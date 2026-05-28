@@ -2,7 +2,7 @@ import Fastify from "fastify";
 import cors from "@fastify/cors";
 import dotenv from "dotenv";
 import OpenAI from "openai";
-import sqlite3 from "sqlite3";
+import Database from "better-sqlite3";
 
 dotenv.config();
 
@@ -10,16 +10,20 @@ const fastify = Fastify({ logger: true });
 
 await fastify.register(cors, { origin: "*" });
 
-/* -------------------- OPENROUTER SETUP -------------------- */
+// OPENROUTER SETUP//
 const client = new OpenAI({
   apiKey: process.env.OPENROUTER_API_KEY,
   baseURL: "https://openrouter.ai/api/v1",
 });
 
-/* -------------------- SQLITE SETUP -------------------- */
-const db = new sqlite3.Database("./movies.db");
+// SQLITE SETUP
+const db = new Database("movies.db");
 
-db.run(`
+// ❌ OLD sqlite3 way (REMOVE)
+// db.run(`CREATE TABLE ...`);
+
+// ✅ correct better-sqlite3 way
+db.exec(`
   CREATE TABLE IF NOT EXISTS recommendations (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     user_input TEXT,
@@ -33,7 +37,7 @@ fastify.get("/", async () => {
   return { message: "Backend running 🚀" };
 });
 
-//main route
+// main route
 fastify.post("/recommend", async (request, reply) => {
   const { input } = request.body;
 
@@ -53,12 +57,10 @@ fastify.post("/recommend", async (request, reply) => {
 
     const movies = text.split(",").map((m) => m.trim());
 
-    // SAVE TO SQLITE
-    db.run(
-      `INSERT INTO recommendations (user_input, recommended_movies)
-       VALUES (?, ?)`,
-      [input, JSON.stringify(movies)]
-    );
+    // SAVE TO SQLITE (better-sqlite3)
+    db.prepare(
+      "INSERT INTO recommendations (user_input, recommended_movies) VALUES (?, ?)"
+    ).run(input, JSON.stringify(movies));
 
     // RESPONSE
     return {
@@ -72,7 +74,7 @@ fastify.post("/recommend", async (request, reply) => {
   }
 });
 
-//server
+// server
 fastify.listen({ port: 5000 }, () => {
   console.log("Server running on http://localhost:5000");
 });
